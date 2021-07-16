@@ -397,6 +397,25 @@ CASE( Dreamforce__c,
         <trackFeedHistory>false</trackFeedHistory>
     </fields>
     <fields>
+        <fullName>Favorite_Pet__c</fullName>
+        <externalId>false</externalId>
+        <label>Favorite Pet</label>
+        <required>false</required>
+        <trackFeedHistory>false</trackFeedHistory>
+        <type>Picklist</type>
+        <valueSet>
+            <restricted>true</restricted>
+            <valueSetDefinition>
+                <sorted>false</sorted>
+                <value>
+                    <fullName>Snake</fullName>
+                    <default>false</default>
+                    <label>Snake</label>
+                </value>
+            </valueSetDefinition>
+        </valueSet>
+    </fields>
+    <fields>
         <fullName>Fax</fullName>
         <trackFeedHistory>false</trackFeedHistory>
     </fields>
