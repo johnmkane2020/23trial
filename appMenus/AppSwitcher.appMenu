@@ -101,6 +101,10 @@
         <type>CustomApplication</type>
     </appMenuItems>
     <appMenuItems>
+        <name>standard__OnlineSales</name>
+        <type>CustomApplication</type>
+    </appMenuItems>
+    <appMenuItems>
         <name>copado__Copado</name>
         <type>CustomApplication</type>
     </appMenuItems>
@@ -130,6 +134,18 @@
     </appMenuItems>
     <appMenuItems>
         <name>Copado_Trial</name>
+        <type>CustomApplication</type>
+    </appMenuItems>
+    <appMenuItems>
+        <name>copadoccmint__Copado_Integrations</name>
+        <type>CustomApplication</type>
+    </appMenuItems>
+    <appMenuItems>
+        <name>copado__Copado_Branch_Management_Lightning</name>
+        <type>CustomApplication</type>
+    </appMenuItems>
+    <appMenuItems>
+        <name>copado__Copado_Change_Management_Lightning</name>
         <type>CustomApplication</type>
     </appMenuItems>
 </AppMenu>
