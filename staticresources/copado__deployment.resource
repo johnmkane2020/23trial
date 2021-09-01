@@ -152,8 +152,21 @@ var copadoApp = {
         me.selectedJob = jobId;
         //get attach and render
         ga('send', 'event', 'Deployment', 'result', 'view');
-        me.getJobResult(jobId, $el.attr('data-destination'), stepName, resultId);
+        if (resultId != 'null' && resultId) {
+            me.openResultRecord(resultId);
+        } else {
+            me.getJobResult(jobId, $el.attr('data-destination'), stepName);
+        }
     },
+
+    openResultRecord: function(resultId) {
+        if (typeof sforce != 'undefined' && sforce && !!sforce.one) {
+            return window.open('/lightning/r/' + resultId + '/view', '_blank');
+        } else {
+            return window.open('/' + resultId, '_blank');
+        }
+    },
+
     setStepDetail: function(stepName, cleanDetail) {},
 
     linkForJob: function(styleClass, job, showResult, force) {
@@ -600,7 +613,7 @@ var copadoApp = {
                 {
                     text: 'Total Record Count',
                     datafield: 'totalRecords',
-                    filtertype: 'input',
+                    filterable: false,
                     columntype: 'textbox',
                     width: '10%',
                     cellsrenderer: sumSuccessAndFailRecords
@@ -608,28 +621,28 @@ var copadoApp = {
                 {
                     text: 'Success Record Count',
                     datafield: 'deployedRecords',
-                    filtertype: 'input',
+                    filterable: false,
                     columntype: 'textbox',
                     width: '10%'
                 },
                 {
                     text: 'Failed Record Count',
                     datafield: 'failedRecords',
-                    filtertype: 'input',
+                    filterable: false,
                     columntype: 'textbox',
                     width: '10%'
                 },
                 {
                     text: 'Attachments (mb)',
                     datafield: 'attachmentSize',
-                    filtertype: 'input',
+                    filterable: false,
                     columntype: 'textbox',
                     width: '10%'
                 },
                 {
                     text: 'Generated IDs',
                     datafield: 'generatedIds',
-                    filtertype: 'input',
+                    filterable: false,
                     columntype: 'textbox',
                     width: '10%',
                     cellsrenderer: generatedIdsCount
@@ -640,25 +653,23 @@ var copadoApp = {
         ga('send', 'event', 'Deployment', 'result', 'render', res.length);
     },
 
-    renderJobsResult: function(res, destination, stepName, jobId, resultId) {
+    renderJobsResult: function(res, destination, stepName, jobId) {
         var $container = $copado('#stepResult');
         var _namespace = copadoApp.ns != '' ? copadoApp.ns + '__' : '';
 
         var newWindowUrl =
-            resultId != 'null' && resultId
-                ? '/' + resultId
-                : '/apex/' +
-                  _namespace +
-                  'DeploymentJobResults?jobId=' +
-                  jobId +
-                  '&deploymentId=' +
-                  copadoApp.data.dep.Id +
-                  '&stepName=' +
-                  stepName +
-                  '&orgName=' +
-                  destination;
+            '/apex/' +
+            _namespace +
+            'DeploymentJobResults?jobId=' +
+            jobId +
+            '&deploymentId=' +
+            copadoApp.data.dep.Id +
+            '&stepName=' +
+            stepName +
+            '&orgName=' +
+            destination;
 
-        var buttonLabel = resultId != 'null' && resultId ? copadoLabels.VIEW_RESULTS : copadoLabels.showResult;
+        var buttonLabel = copadoLabels.showResult;
 
         var resultsNewWindowLink =
             '&nbsp;&nbsp;<button id="btnShowResultsPopout" class="copado-lightning" onclick="window.open(\'' +
@@ -719,7 +730,7 @@ var copadoApp = {
         $copado('#tab-stepResult').click();
     },
 
-    getJobResult: function(jobId, destination, stepName, resultId) {
+    getJobResult: function(jobId, destination, stepName) {
         copadoApp.lock();
         var result = sforce.connection.query(
             "SELECT Id, Body, BodyLength, ContentType, Name, ParentId FROM Attachment where Name = '" +
@@ -727,7 +738,7 @@ var copadoApp = {
                 ".json' order by createdDate DESC limit 1",
             {
                 onSuccess: function(r) {
-                    copadoApp.renderJobsResult(r, destination, stepName, jobId, resultId);
+                    copadoApp.renderJobsResult(r, destination, stepName, jobId);
                 },
                 onFailure: function(res) {
                     copadoApp.showMessage('INFO', copadoLabels.NO_STEP_RESULTS_FOUND);
@@ -800,12 +811,13 @@ var copadoApp = {
      * @return {[type]}      [description]
      */
     showMessage: function(type, msg) {
+        var panelHtml = msg
+            ? $copado('[id$=js-msg-' + type + ']')
+                  .html()
+                  .replace('__MSG__', msg)
+            : $copado('[id$=js-msg-' + type + ']').html();
         $copado('.fixedMsg')
-            .html(
-                $copado('[id$=js-msg-' + type + ']')
-                    .html()
-                    .replace('__MSG__', msg)
-            )
+            .html(panelHtml)
             .fadeIn('slow');
         setTimeout(function() {
             $copado('.fixedMsg').fadeOut('slow');
@@ -1013,6 +1025,7 @@ var copadoApp = {
             stepObj[copadoApp.ns + 'dataJson__c'] = step[copadoApp.ns + 'dataJson__c'];
         }
 
+        copadoStep.stepObj = step;
         copadoApp.checkDeploymentStage();
 
         $copado('.js-col-actions[data-stepId="' + copadoApp.selectedStepId + '"]')
@@ -1095,6 +1108,11 @@ var copadoApp = {
                 $check.show();
             } else {
                 $check.hide();
+            }
+            if (['Data Template'].indexOf(selectedStep.type) != -1) {
+                $copado('.js-validateStep').css('visibility', 'visible');
+            } else {
+                $copado('.js-validateStep').css('visibility', 'hidden');
             }
         }
         $copado('.js-saveStep').css('visibility', $copado(`div[data-stepid="${selectedStep.Id}"]`).css('visibility') == 'hidden' ? 'hidden' : '');
@@ -1790,6 +1808,7 @@ var copadoStep = {
 
         //Data Template step
         if (me.uiBlockByType[stepType].dti) {
+            setStepIdInDataStepValidationResultCtrl(stepObj.Id);
             copadoDataTemplateStep.init(stepObj);
         }
 
@@ -1861,6 +1880,10 @@ var copadoStep = {
         }
 
         if (type == 'Salesforce Flow') {
+            dataStep = copadoStep.stepObj[copadoApp.ns + 'dataJson__c'];
+        }
+
+        if (type == 'Function') {
             dataStep = copadoStep.stepObj[copadoApp.ns + 'dataJson__c'];
         }
 
@@ -1948,6 +1971,10 @@ var copadoStep = {
 
         if (type == 'Salesforce Flow') {
             copadoSalesforceFlowStep.setPrevData(dataStep);
+        }
+
+        if (type == 'Function') {
+            copadoFunctionStep.setPrevData(dataStep);
         }
 
         if (type == 'Automation') {
@@ -2086,6 +2113,11 @@ var copadoStep = {
             custom: 'SalesforceFlow',
             qb: 0
         },
+        Function: {
+            grid: 0,
+            custom: 'Function',
+            qb: 0
+        },
         Automation: {
             grid: 0,
             custom: 'Automation',
@@ -2114,7 +2146,7 @@ var copadoStep = {
 
     hideAll: function() {
         $copado(
-            '[id=js-FindReplaceContainer],[id=js-stepBlock-UrlCallout-ResumeUrl],[id$=js-stepBlock-UrlCallout],[id=js-TestLevelContainer],[id$=js-stepBlock-ManualTask],[id$=js-stepBlock-Apex],[id$=pbStepDetailComponent],[id$=js-stepBlock-Grid],[id$=js-stepBlock-Users],[id$=js-stepBlock-QB],[id$=js-stepBlock-CustomSettings],[id$=js-stepBlock-QuickActions],[id$=js-stepBlock-Git-MetaData],[id$=js-stepBlock-Git-Promotion],[Id$=js-stepBlock-ExternalCI],[Id$=js-stepBlock-DataTemplate],[Id$=js-stepBlock-SalesforceFlow]'
+            '[id=js-FindReplaceContainer],[id=js-stepBlock-UrlCallout-ResumeUrl],[id$=js-stepBlock-UrlCallout],[id=js-TestLevelContainer],[id$=js-stepBlock-ManualTask],[id$=js-stepBlock-Apex],[id$=pbStepDetailComponent],[id$=js-stepBlock-Grid],[id$=js-stepBlock-Users],[id$=js-stepBlock-QB],[id$=js-stepBlock-CustomSettings],[id$=js-stepBlock-QuickActions],[id$=js-stepBlock-Git-MetaData],[id$=js-stepBlock-Git-Promotion],[Id$=js-stepBlock-ExternalCI],[Id$=js-stepBlock-DataTemplate],[Id$=js-stepBlock-SalesforceFlow],[Id$=js-stepBlock-Function],[Id$=js-stepBlock-Automation]'
         ).hide();
     },
 
@@ -2146,7 +2178,9 @@ var copadoStep = {
             dw.u.upsertAttach(step.Id, step[copadoApp.ns + 'Type__c'] || step.type, JSON.stringify(list));
             if (cb) cb();
         },
-        hasToSaveList: true
+        hasToSaveList: true,
+        hasSaveCallback: false,
+        hasValidateStep: false
     },
 
     handlers: false,
@@ -2174,6 +2208,7 @@ var copadoStep = {
             'External CI': $copado.extend({}, me.defaultHandler),
             'Data Template': $copado.extend({}, me.defaultHandler),
             'Salesforce Flow': $copado.extend({}, me.defaultHandler),
+            Function: $copado.extend({}, me.defaultHandler),
             Automation: $copado.extend({}, me.defaultHandler)
         };
 
@@ -2362,12 +2397,23 @@ var copadoStep = {
         me.handlers['Data Template'].getStepListData = function() {
             return copadoDataTemplateStep.getObjToSave();
         };
+        me.handlers['Data Template'].hasSaveCallback = true;
+        me.handlers['Data Template'].saveCallback = function(step) {
+            setStepIdInDataStepValidationResultCtrl(step.Id);
+            return step;
+        };
+        me.handlers['Data Template'].hasValidateStep = true;
+        me.handlers['Data Template'].validateStep = function(step) {
+            validateDataTemplate(step.Id);
+            return step;
+        };
         me.handlers['Data Template'].updateStepFields = function(step, obj) {
+            step[copadoApp.ns + 'ParentId__c'] = copadoDataTemplateStep.getParentId();
             step[copadoApp.ns + 'dataJson__c'] = obj;
             return step;
         };
         me.handlers['Data Template'].hasError = function(obj) {
-            return copadoDataTemplateStep.isValid() ? false : 'Please select a Data Template';
+            return copadoDataTemplateStep.isValid() ? false : 'Please configure all required fields';
         };
         me.handlers['Data Template'].forceSaveBoth = true;
 
@@ -2387,6 +2433,19 @@ var copadoStep = {
             return step;
         };
 
+        //Function
+        me.handlers['Function'].getStepListData = function() {
+            return copadoFunctionStep.getObjToSave();
+        };
+        me.handlers['Function'].updateStepFields = function(step, obj) {
+            step[copadoApp.ns + 'dataJson__c'] = obj;
+            return step;
+        };
+        me.handlers['Function'].hasError = function(obj) {
+            return copadoFunctionStep.isValid() ? false : copadoLabels.SPECIFY_AT_LEAST_ONE_ITEM_TO_DEPLOY;
+        };
+        me.handlers['Function'].forceSaveBoth = true;
+
         // Automation
         me.handlers['Automation'].getStepListData = function() {
             return copadoAutomationStep.getObjToSave();
@@ -2401,8 +2460,30 @@ var copadoStep = {
         me.handlers['Automation'].forceSaveBoth = true;
     },
 
+    validateStep: function() {
+        copadoApp.disabledBtn('.js-validateStep', 'Validating...');
+        // define a callback for each step
+        //timeout inorder to rerender part of the interface
+        setTimeout(function() {
+            var me = copadoStep;
+            if (!me.handlers) {
+                me.buildHandlers();
+            }
+            //get values to save step using JS
+            var type = me.stepType;
+            var stepHandler = me.handlers[type];
+            if (!me.stepId) {
+                copadoApp.showMessage('ERROR', 'Save the step before validating');
+            }
+            if (stepHandler.hasValidateStep) {
+                stepHandler.validateStep(me.stepObj);
+            }
+            copadoApp.enabledBtn('.js-validateStep', 'Validate');
+            return false;
+        }, 10);
+        return false;
+    },
     //po
-
     save: function() {
         copadoApp.disabledBtn('.js-saveStep', 'Saving...');
         copadoApp.lock();
@@ -2448,6 +2529,9 @@ var copadoStep = {
                             } else {
                                 copadoStep.saveCallback(s);
                             }
+                            if (stepHandler.hasSaveCallback) {
+                                stepHandler.saveCallback(s);
+                            }
                         }
                     });
                 } else {
@@ -2480,6 +2564,10 @@ var copadoStep = {
             step[copadoApp.ns + 'Commit_Name__c'] = s[copadoApp.ns + 'Commit_Name__c'];
             step[copadoApp.ns + 'Git_Repository__c'] = s[copadoApp.ns + 'Git_Repository__c'];
             step[copadoApp.ns + 'Branch__c'] = s[copadoApp.ns + 'Branch__c'];
+        }
+
+        if (s[copadoApp.ns + 'ParentId__c']) {
+            step[copadoApp.ns + 'ParentId__c'] = s[copadoApp.ns + 'ParentId__c'];
         }
         // this will insert or update an step
         var result = sforce.connection.upsert('Id', [step]);
@@ -3370,8 +3458,9 @@ var copadoGitMetadataStep = {
             //get saved data
             if (me.stepObj.Id) {
                 var prev = dw.u.getDecodedAttach(me.stepObj.Id, 'MetaData');
-
-                me.data.prevAttId = prev.Id;
+                if (prev) {
+                    me.data.prevAttId = prev.Id;
+                }
             }
 
             prev = prev ? JSON.parse(prev.Body) : [];
@@ -4060,8 +4149,11 @@ var copadoExternalCIJobStep = {
 /**************************************************************************************/
 var copadoDataTemplateStep = {
     data: {
-        dataTemplateId: ''
+        dataTemplateId: '',
+        source: {},
+        destination: {}
     },
+    parentId: undefined,
     init: function(step) {
         stepDataForOverrideFilter = step;
         var me = copadoDataTemplateStep;
@@ -4070,128 +4162,219 @@ var copadoDataTemplateStep = {
         } else {
             me.started = true;
         }
+        if (step[copadoApp.ns + 'ParentId__c']) {
+            copadoDataTemplateStep.parentId = step[copadoApp.ns + 'ParentId__c'];
+        }
     },
     setPrevData: function(data) {
         data = data ? JSON.parse(data) : false;
-        $copado('[id$=auxDataTemplateId_lkid]').val(data ? data.dataTemplateId : '000000000000000');
         if (data) {
-            var deferredArray = [];
-            var deferred = new $copado.Deferred();
-            deferredArray.push(deferred);
-            copadoDataTemplateStep.dataTemplateTotalObjects(data, deferred.resolve);
-            $copado.when.apply(this, deferredArray).then(deferredData => {
-                sforce.connection.query(
-                    'SELECT Id, Name, ' +
-                        copadoApp.ns +
-                        'Template_Source_Org__r.Name, ' +
-                        copadoApp.ns +
-                        'Batch_Size__c, ' +
-                        copadoApp.ns +
-                        'Max_Record_Limit__c, ' +
-                        copadoApp.ns +
-                        'Main_Object__c FROM ' +
-                        copadoApp.ns +
-                        "Data_Template__c WHERE Id = '" +
-                        data.dataTemplateId +
-                        "' LIMIT 1",
-                    {
-                        onSuccess: function(result) {
-                            var records = result.getArray('records');
-                            if (records.length == 1) {
-                                var recordData = records[0];
-                                var name = recordData.Name;
-                                var header = name + ' | ' + recordData[copadoApp.ns + 'Main_Object__c'];
-                                var btchrec = recordData[copadoApp.ns + 'Batch_Size__c'] ? recordData[copadoApp.ns + 'Batch_Size__c'] : 0;
-                                $copado('[id$=auxDataTemplateId_lkold]').val(name);
-                                $copado('[id$=auxDataTemplateId]').val(name);
-                                $copado('[id$=headerDataTemplate]').text(header);
-                                $copado('[id$=sourceOrg]').text(recordData[copadoApp.ns + 'Template_Source_Org__r'].Name);
-                                $copado('[id$=totalObjects]').text(deferredData.count);
-                                $copado('[id$=objectFilter]').text(deferredData.filterLogic);
-                                $copado('[id$=editFilterIconText]').text(deferredData.editIconText);
-                                $copado('[id$=batchSize]').text(btchrec);
-                                $copado('[id$=maxRecordLimit]').text(recordData[copadoApp.ns + 'Max_Record_Limit__c']);
-                                $copado('[id$=opentemplate]').show();
-                                $copado('[id$=openRelationshipDiagram]').show();
-
-                                if (stepDataForOverrideFilter && stepDataForOverrideFilter.Id) {
-                                    $copado('[id$=editTemplateFilter]').show();
-                                }
-                            }
-                        },
-                        onFailure: function(error) {
-                            console.error('An error has occurred ' + error);
-                        }
-                    }
-                );
-            });
+            copadoDataTemplateStep.data = data;
         } else {
             var me = copadoDataTemplateStep;
             me.reset();
+            me.resetDefaults();
+        }
+        // set selected data source
+        if (
+            copadoDataTemplateStep.data.source &&
+            copadoDataTemplateStep.data.source.type &&
+            copadoDataTemplateStep.data.source.type === 'DATASET' &&
+            document.getElementById('DATASET')
+        ) {
+            document.getElementById('DATASET').checked = true;
+        } else if (copadoDataTemplateStep && copadoDataTemplateStep.dataTemplateId != '' && document.getElementById('ENVIRONMENT')) {
+            document.getElementById('ENVIRONMENT').checked = true;
+        }
+
+        copadoDataTemplateStep.toggleHtmlElementsVisibility();
+        copadoDataTemplateStep.getDataTemplateDetails(data);
+        copadoDataTemplateStep.getDataSetDetails(data);
+    },
+    resetDefaults: function() {
+        copadoDataTemplateStep.data.dataTemplateId = '';
+        copadoDataTemplateStep.data.source = undefined;
+        copadoDataTemplateStep.data.destination = undefined;
+        copadoDataTemplateStep.parentId = undefined;
+    },
+    getDataTemplateDetails: function(data) {
+        if (data.dataTemplateId) {
+            let dataTemplates = sforce.connection.query(
+                'SELECT Id, Name, ' +
+                    copadoApp.ns +
+                    'Template_Source_Org__r.Name, ' +
+                    copadoApp.ns +
+                    'Batch_Size__c, ' +
+                    copadoApp.ns +
+                    'Max_Record_Limit__c, ' +
+                    copadoApp.ns +
+                    'Main_Object__c FROM ' +
+                    copadoApp.ns +
+                    "Data_Template__c WHERE Id = '" +
+                    data.dataTemplateId +
+                    "' LIMIT 1"
+            );
+            let dataTemplateRecords = dataTemplates.getArray('records');
+            if (dataTemplateRecords && dataTemplateRecords.length > 0) {
+                let recordData = dataTemplateRecords[0];
+                let name = recordData.Name;
+                let header = name + ' | ' + recordData[copadoApp.ns + 'Main_Object__c'];
+                let btchrec = recordData[copadoApp.ns + 'Batch_Size__c'] ? recordData[copadoApp.ns + 'Batch_Size__c'] : 0;
+                $copado('[id$=SourceDataTemplate_lkid]').val(copadoDataTemplateStep.data.dataTemplateId);
+                $copado('[id$=SourceDataTemplate_lkold]').val(name);
+                $copado('[id$=SourceDataTemplate]').val(name);
+                $copado('[id$=headerDataTemplate]').text(header);
+                $copado('[id$=headerDataTemplate]').data('recordid', recordData.Id);
+                $copado('[id$=sourceOrg]').text(recordData[copadoApp.ns + 'Template_Source_Org__r'].Name);
+
+                $copado('[id$=batchSize]').text(btchrec);
+                $copado('[id$=maxRecordLimit]').text(recordData[copadoApp.ns + 'Max_Record_Limit__c']);
+                $copado('[id$=opentemplate]').show();
+                $copado('[id$=openRelationshipDiagram]').show();
+
+                if (stepDataForOverrideFilter && stepDataForOverrideFilter.Id) {
+                    $copado('[id$=editTemplateFilter]').show();
+                }
+            }
+            copadoDataTemplateStep.getDataTemplateFilterInformation(data.dataTemplateId, data);
         }
     },
-    dataTemplateTotalObjects: function(dataJson, cbOnEnd) {
+    getDataSetDetails: function(data) {
+        let dataSetRecord;
+        if (data.source && data.source.type === 'DATASET' && data.source.id) {
+            dataSetRecord = copadoDataTemplateStep.getDataSetDetailsById(data.source.id, data);
+            if (dataSetRecord) {
+                $copado('[id$=SourceDataSet]').val(dataSetRecord.Name);
+                $copado('[id$=SourceDataSet_lkid]').val(dataSetRecord.Id);
+                $copado('[id$=SourceDataSet_lkold]').val(dataSetRecord.Name);
+            }
+        } else if (data.destination && data.destination.type === 'DATASET' && data.destination.id) {
+            dataSetRecord = copadoDataTemplateStep.getDataSetDetailsById(data.destination.id, data);
+            if (dataSetRecord) {
+                $copado('[id$=DestinationDataSet]').val(dataSetRecord.Name);
+                $copado('[id$=DestinationDataSet_lkid]').val(dataSetRecord.Id);
+                $copado('[id$=DestinationDataSet_lkold]').val(dataSetRecord.Name);
+            }
+        }
+        return dataSetRecord;
+    },
+    getDataSetDetailsById: function(dataSetId, data) {
+        let dataSets = sforce.connection.query(
+            'SELECT Id, Name, ' +
+                copadoApp.ns +
+                'Data_Template__c, ' +
+                copadoApp.ns +
+                'Data_Template__r.Name, ' +
+                copadoApp.ns +
+                'Description__c FROM ' +
+                copadoApp.ns +
+                "Data_Set__c WHERE Id = '" +
+                dataSetId +
+                "'"
+        );
+        let dataSetRecords = dataSets.getArray('records');
+        if (dataSetRecords.length > 0) {
+            let record = dataSetRecords[0];
+            let recordName = record.Name;
+            let recordId = record.Id;
+            let dataSetDataTemplateId = record[copadoApp.ns + 'Data_Template__c'];
+            let dataSetDataTemplateName = record[copadoApp.ns + 'Data_Template__r'].Name;
+            let description = record[copadoApp.ns + 'Description__c'];
+            $copado('[id$=openDataSet]').show();
+            $copado('[id$=headerDataSet]').text(recordName);
+            $copado('[id$=headerDataSet]').data('recordid', recordId);
+            $copado('[id$=dataSetTemplate]').text(dataSetDataTemplateName);
+            $copado('[id$=dataSetTemplate]').data('recordid', dataSetDataTemplateId);
+            $copado('[id$=description]').text(description);
+            let contentDocuments = sforce.connection.query(
+                'SELECT ContentDocumentId ' + 'FROM ContentDocumentLink ' + "WHERE LinkedEntityId = '" + dataSetId + "'"
+            );
+            let contentDocumentRecords = contentDocuments.getArray('records');
+            let contentDocumentIds = contentDocumentRecords.map(record => record.ContentDocumentId);
+            let contentDocumentIdsQueryParameter = "'" + contentDocumentIds.toString().replace(/,/g, "','") + "'";
+            let contentVersions = sforce.connection.query(
+                'SELECT Id, ContentSize ' + 'FROM ContentVersion ' + 'WHERE ContentDocumentId IN (' + contentDocumentIdsQueryParameter + ')'
+            );
+            let files = contentVersions.getArray('records');
+            $copado('[id$=numberOfFiles]').text(files.length);
+            let sizeInBytes = 0;
+            files.forEach(file => {
+                sizeInBytes += parseInt(file.ContentSize);
+            });
+            let sizeInKB = sizeInBytes > 0 ? (sizeInBytes / 1024).toFixed(2) : 0;
+            $copado('[id$=totalFileSize]').text(sizeInKB + ' KB');
+
+            if (data.destination && data.destination.type === 'DATASET' && data.destination.id) {
+                $copado('[id$=dataSetFilter]').show();
+                copadoDataTemplateStep.getDataTemplateFilterInformation(dataSetDataTemplateId, data);
+            } else {
+                $copado('[id$=dataSetFilter]').hide();
+            }
+
+            return record;
+        }
+        return null;
+    },
+    getDataTemplateFilterInformation: function(dataTemplateId, dataJson) {
         var objectsCount = 0;
         var filterLogic = '';
         var editIconText = '';
         var templateDetails = {};
-        sforce.connection.query(
-            "SELECT Id, Name, Body FROM Attachment WHERE ParentId='" + dataJson.dataTemplateId + "' AND Name = 'Template Detail' LIMIT 1",
-            {
-                onSuccess: response => {
-                    if (response.records) {
-                        var contents = JSON.parse(sforce.Base64Binary.prototype.decode(response.records.Body));
-                        objectsCount += contents.childrenObjectsReferenceList.length;
-                        objectsCount += contents.parentObjectsReferenceList.length;
-                        templateDetails['count'] = objectsCount;
-                        var queryFilters = contents.queryFilterList;
-                        filterLogic = contents.dataTemplate.templateFilterLogic;
-                        // checking if step datajson is already have filter overriden
-                        if (dataJson.queryFilterList && dataJson.queryFilterList.length > 0) {
-                            queryFilters = dataJson.queryFilterList;
-                            filterLogic = dataJson.filterLogic;
-                        }
-
-                        // first we will replace the number with specific key, to prevent id issue while replacing, becuase id can contain numbers and it will cause a replace problem
-                        queryFilters.forEach(function(filterItem) {
-                            filterLogic = filterLogic.replace(filterItem.order, filterItem.order + filterItem.fieldaName);
-                        });
-
-                        // now we can replace with the correct values, we have specific key for each filterlogic
-                        queryFilters.forEach(function(filterItem) {
-                            filterLogic = filterLogic.replace(filterItem.order + filterItem.fieldaName, filterItem.finalValue);
-                        });
-
-                        if (!dataJson.queryFilterList && filterLogic === '1') {
-                            filterLogic = '';
-                        }
-
-                        if (filterLogic == '') {
-                            editIconText = 'No Filter';
-                        }
-
-                        templateDetails['filterLogic'] = filterLogic;
-                        templateDetails['editIconText'] = editIconText;
-                    }
-                    cbOnEnd && cbOnEnd(templateDetails);
-                },
-                onFailure: error => {
-                    console.error('An error has occurred ' + error);
-                }
-            }
+        let attachments = sforce.connection.query(
+            'SELECT Id, Name, Body ' + 'FROM Attachment ' + "WHERE ParentId='" + dataTemplateId + "' " + "AND Name = 'Template Detail' LIMIT 1"
         );
+        let attachmentRecords = attachments.getArray('records');
+        if (attachmentRecords && attachmentRecords.length > 0) {
+            let attachmentRecord = attachmentRecords[0];
+            var contents = JSON.parse(sforce.Base64Binary.prototype.decode(attachmentRecord.Body));
+            objectsCount += contents.childrenObjectsReferenceList.length;
+            objectsCount += contents.parentObjectsReferenceList.length;
+            templateDetails['count'] = objectsCount;
+            var queryFilters = contents.queryFilterList;
+            filterLogic = contents.dataTemplate.templateFilterLogic;
+            // checking if step datajson is already have filter overriden
+            if (dataJson.queryFilterList && dataJson.queryFilterList.length > 0) {
+                queryFilters = dataJson.queryFilterList;
+                filterLogic = dataJson.filterLogic;
+            }
+
+            // first we will replace the number with specific key, to prevent id issue while replacing, becuase id can contain numbers and it will cause a replace problem
+            queryFilters.forEach(function(filterItem) {
+                filterLogic = filterLogic.replace(filterItem.order, filterItem.order + filterItem.fieldaName);
+            });
+
+            // now we can replace with the correct values, we have specific key for each filterlogic
+            queryFilters.forEach(function(filterItem) {
+                filterLogic = filterLogic.replace(filterItem.order + filterItem.fieldaName, filterItem.finalValue);
+            });
+
+            if (!dataJson.queryFilterList && filterLogic === '1') {
+                filterLogic = '';
+            }
+
+            if (filterLogic == '') {
+                editIconText = 'No Filter';
+            }
+
+            templateDetails['filterLogic'] = filterLogic;
+            templateDetails['editIconText'] = editIconText;
+        }
+        $copado('[id$=totalObjects]').text(templateDetails.count);
+        $copado('[id$=objectFilter]').text(templateDetails.filterLogic);
+        $copado('[id$=editFilterIconText]').text(templateDetails.editIconText);
     },
     getObjToSave: function() {
-        return JSON.stringify({
-            dataTemplateId: $copado('[id$=auxDataTemplateId_lkid]').val()
-        });
+        return JSON.stringify(copadoDataTemplateStep.data);
+    },
+    getParentId: function() {
+        return copadoDataTemplateStep.parentId;
     },
     reset: function() {
-        copadoDataTemplateStep.data.dataTemplateId = '';
-        $copado('[id$=auxDataTemplateId_lkid]').val('000000000000000');
-        $copado('[id$=auxDataTemplateId_lkold]').val('');
-        $copado('[id$=auxDataTemplateId]').val('');
+        $copado('[id$=SourceDataTemplate_lkid]').val('000000000000000');
+        $copado('[id$=SourceDataTemplate_lkold]').val('');
+        $copado('[id$=SourceDataTemplate]').val('');
         $copado('[id$=headerDataTemplate]').text('');
+        $copado('[id$=headerDataTemplate]').data('recordid', '');
         $copado('[id$=sourceOrg]').text('');
         $copado('[id$=totalObjects]').text('');
         $copado('[id$=objectFilter]').text('');
@@ -4201,12 +4384,34 @@ var copadoDataTemplateStep = {
         $copado('[id$=opentemplate]').hide();
         $copado('[id$=openRelationshipDiagram]').hide();
         $copado('[id$=editTemplateFilter]').hide();
+        // new properties for datasets
+        $copado('[id$=ENVIRONMENT]').prop('checked', true);
+        $copado('[id$=SourceDataSet]').val('');
+        $copado('[id$=SourceDataSet_lkid]').val('');
+        $copado('[id$=SourceDataSet_lkold]').val('');
+        $copado('[id$=DestinationType]').val('');
+        $copado('[id$=DestinationDataSet]').val('');
+        $copado('[id$=DestinationDataSet_lkid]').val('');
+        $copado('[id$=DestinationDataSet_lkold]').val('');
+        $copado('[id$=openDataSet]').hide();
+        $copado('[id$=headerDataSet]').text('');
+        $copado('[id$=headerDataSet]').data('recordid', '');
+        $copado('[id$=dataSetTemplate]').text('');
+        $copado('[id$=dataSetTemplate]').data('recordid', '');
+        $copado('[id$=numberOfFiles]').text('');
+        $copado('[id$=description]').text('');
+        $copado('[id$=totalFileSize]').text('');
     },
     isValid: function() {
-        return $copado('[id$=auxDataTemplateId]').val() == '' ? false : true;
+        if (!copadoDataTemplateStep.data.source) {
+            return copadoDataTemplateStep.data.dataTemplateId && copadoDataTemplateStep.data.dataTemplateId !== '000000000000000';
+        }
+        let templateSelected = copadoDataTemplateStep.data.source.type == 'ENVIRONMENT' && !(copadoDataTemplateStep.data.dataTemplateId && copadoDataTemplateStep.data.dataTemplateId !== '000000000000000') ? false : true;
+        let sourceSelected = copadoDataTemplateStep.data.source.type == 'DATASET' && !copadoDataTemplateStep.data.source.id ? false : true;
+        return templateSelected && sourceSelected;
     },
-    openRelationDataTemplate: function() {
-        var templateId = $copado('[id$=auxDataTemplateId_lkid]').val();
+    openRelationDataTemplate: function(elementId) {
+        let templateId = $copado('[id$=' + elementId + ']').data('recordid');
         if (typeof sforce != 'undefined' && sforce && !!sforce.one) {
             return window.open('/lightning/r/' + templateId + '/view', '_blank');
         } else {
@@ -4214,7 +4419,7 @@ var copadoDataTemplateStep = {
         }
     },
     redirectToRelationalDiagramLWC: function() {
-        var templateId = $copado('[id$=auxDataTemplateId_lkid]').val();
+        var templateId = copadoDataTemplateStep.data.dataTemplateId;
 
         // for dev orgs it need to have c: but for namespace context in managed package it should be copado
         var namespace = copadoApp.ns == '' ? 'c' : 'copado';
@@ -4239,6 +4444,138 @@ var copadoDataTemplateStep = {
                 stepDataForOverrideFilter.Id,
             '_parent'
         );
+    },
+    openRelationDataSet: function(elementId) {
+        let datasetId = $copado('[id$=' + elementId + ']').data('recordid');
+        if (datasetId) {
+            return window.open('/lightning/r/' + datasetId + '/view', '_blank');
+        }
+    },
+    setTemplate: function() {
+        copadoDataTemplateStep.data.dataTemplateId = $copado('[id$=SourceDataTemplate_lkid]').val();
+        copadoDataTemplateStep.data.source = undefined;
+        copadoDataTemplateStep.data.destination = undefined;
+        copadoDataTemplateStep.parentId = undefined;
+        // refresh data template information
+        copadoDataTemplateStep.toggleSourceElements('ENVIRONMENT');
+        copadoDataTemplateStep.getDataTemplateDetails(copadoDataTemplateStep.data);
+    },
+    handleChangeSourceType: function(sourceType) {
+        this.setSourceType(sourceType);
+        switch (sourceType) {
+            case 'ENVIRONMENT':
+                copadoDataTemplateStep.setTemplate();
+                break;
+            case 'DATASET':
+                copadoDataTemplateStep.setSourceId();
+                break;
+        }
+        this.toggleSourceElements(sourceType);
+    },
+    setSourceType: function(sourceType) {
+        if (!copadoDataTemplateStep.data.source) {
+            copadoDataTemplateStep.data.source = {};
+        }
+        copadoDataTemplateStep.data.source.type = sourceType;
+    },
+    toggleSourceElements: function(sourceType) {
+        let sourceDataTemplatePanel = document.getElementById('dataTemplateSourcePanel');
+        let sourceDataSetPanel = document.getElementById('dataSetSourcePanel');
+        let templateDetailsBlock = document.getElementById('dataTemplateInformation');
+        let datasetDetailsBlock = document.getElementById('dataSetInformation');
+        if (sourceDataTemplatePanel && sourceDataSetPanel && templateDetailsBlock && datasetDetailsBlock) {
+            switch (sourceType) {
+                case 'ENVIRONMENT':
+                case undefined:
+                    sourceDataTemplatePanel.style.display = 'block';
+                    sourceDataSetPanel.style.display = 'none';
+                    if (copadoDataTemplateStep.data.dataTemplateId) {
+                        templateDetailsBlock.style.display = 'block';
+                    } else {
+                        templateDetailsBlock.style.display = 'none';
+                    }
+                    datasetDetailsBlock.style.display = 'none';
+                    break;
+                case 'DATASET':
+                    sourceDataTemplatePanel.style.display = 'none';
+                    sourceDataSetPanel.style.display = 'block';
+                    templateDetailsBlock.style.display = 'none';
+                    if (copadoDataTemplateStep.data.source.id) {
+                        datasetDetailsBlock.style.display = 'block';
+                    } else {
+                        datasetDetailsBlock.style.display = 'none';
+                    }
+                    break;
+            }
+        }
+    },
+    setSourceId: function() {
+        copadoDataTemplateStep.data.dataTemplateId = undefined;
+        copadoDataTemplateStep.data.source = { type: 'DATASET' };
+        let selectedDataSet = $copado('[id$=SourceDataSet_lkid]').val();
+        if (selectedDataSet != '' && selectedDataSet != '000000000000000') {
+            copadoDataTemplateStep.data.source.id = selectedDataSet;
+        }
+        copadoDataTemplateStep.data.destination = { type: 'ENVIRONMENT' };
+        copadoDataTemplateStep.toggleSourceElements(copadoDataTemplateStep.data.source.type);
+        // refresh data set information
+        let dataSetRecord = copadoDataTemplateStep.getDataSetDetails(copadoDataTemplateStep.data);
+        if(dataSetRecord){
+            copadoDataTemplateStep.parentId = dataSetRecord.Id;
+        }
+    },
+    toggleDestinationElements: function(destinationType) {
+        let sourceDataTemplatePanel = document.getElementById('dataTemplateSourcePanel');
+        let destinationDataSetPanel = document.getElementById('dataSetDestinationPanel');
+        let templateDetailsBlock = document.getElementById('dataTemplateInformation');
+        let datasetDetailsBlock = document.getElementById('dataSetInformation');
+
+        let dataSourceTypeEnvironment = document.getElementById('ENVIRONMENT');
+        let dataSourceTypeDataSet = document.getElementById('DATASET');
+        let destinationDataSetLookup = $copado('[id$=DestinationDataSet]');
+
+        if (
+            sourceDataTemplatePanel &&
+            destinationDataSetLookup &&
+            templateDetailsBlock &&
+            datasetDetailsBlock &&
+            dataSourceTypeEnvironment &&
+            dataSourceTypeDataSet &&
+            destinationDataSetLookup
+        ) {
+            switch (destinationType) {
+                case 'ENVIRONMENT':
+                case undefined:
+                    destinationDataSetPanel.style.display = 'none';
+
+                    dataSourceTypeEnvironment.disabled = false;
+                    dataSourceTypeDataSet.disabled = false;
+                    destinationDataSetLookup.attr('disabled', false);
+                    break;
+                case 'DATASET':
+                    sourceDataTemplatePanel.style.display = 'none';
+                    destinationDataSetPanel.style.display = 'block';
+                    templateDetailsBlock.style.display = 'none';
+                    if (copadoDataTemplateStep.data.destination.id) {
+                        datasetDetailsBlock.style.display = 'block';
+                    }
+
+                    dataSourceTypeEnvironment.disabled = true;
+                    dataSourceTypeDataSet.disabled = true;
+                    destinationDataSetLookup.attr('disabled', true);
+                    break;
+            }
+        }
+    },
+    toggleHtmlElementsVisibility() {
+        let sourceType =
+            copadoDataTemplateStep.data.source && copadoDataTemplateStep.data.source.type ? copadoDataTemplateStep.data.source.type : undefined;
+        let destinationType =
+            copadoDataTemplateStep.data.destination && copadoDataTemplateStep.data.destination.type
+                ? copadoDataTemplateStep.data.destination.type
+                : undefined;
+        copadoDataTemplateStep.toggleSourceElements(sourceType);
+        copadoDataTemplateStep.toggleDestinationElements(destinationType);
     }
 };
 
@@ -5256,8 +5593,9 @@ var copadoGitPromotionStep = {
             //get saved data
             if (me.stepObj.Id) {
                 var prev = dw.u.getDecodedAttach(me.stepObj.Id, 'MetaData');
-
-                me.data.prevAttId = prev.Id;
+                if (prev) {
+                    me.data.prevAttId = prev.Id;
+                }
             }
 
             prev = prev ? JSON.parse(prev.Body) : [];
@@ -5612,6 +5950,146 @@ var copadoSalesforceFlowStep = {
             '</button>';
         var flag = status === 'In progress' ? '<span class="jobIcon job-in-progress"> </span>' : '';
         return flag + html;
+    }
+};
+
+/**************************************************************************************/
+//      FUNCTION
+/**************************************************************************************/
+var functionRecord;
+var copadoFunctionStep = {
+    data: {
+        functionAPIName: ''
+    },
+    init: function(step) {
+        var me = copadoFunctionStep;
+        if (me.started) {
+            me.reset();
+        } else {
+            me.started = true;
+        }
+    },
+    setPrevData: function(data) {
+        data = data ? JSON.parse(data) : false;
+        if (data) {
+            copadoFunctionStep.getFunctionDetails(data);
+        } else {
+            var me = copadoFunctionStep;
+            me.reset();
+        }
+    },
+    getFunctionDetails: function(data) {
+        var functionAPIName = data ? data.functionAPIName : '';
+        var query;
+        if (functionAPIName) {
+            query =
+                'SELECT Id, Name, ' +
+                copadoApp.ns +
+                'API_Name__c, ' +
+                copadoApp.ns +
+                'Parameters__c FROM ' +
+                copadoApp.ns +
+                'Function__c WHERE ' +
+                copadoApp.ns +
+                "API_Name__c = '" +
+                functionAPIName +
+                "' LIMIT 1";
+        } else {
+            var functionId = $copado('[id$=auxFunctionId_lkid]').val();
+            query =
+                'SELECT Id, Name, ' +
+                copadoApp.ns +
+                'API_Name__c, ' +
+                copadoApp.ns +
+                'Parameters__c FROM ' +
+                copadoApp.ns +
+                "Function__c WHERE Id = '" +
+                functionId +
+                "' LIMIT 1";
+        }
+        sforce.connection.query(query, {
+            onSuccess: function(result) {
+                var records = result.getArray('records');
+                if (records.length == 1) {
+                    functionRecord = records[0];
+                    var recordName = functionRecord.Name;
+                    var recordId = functionRecord.Id;
+                    $copado('[id$=auxFunctionId_lkold]').val(recordName);
+                    $copado('[id$=auxFunctionId]').val(recordName);
+                    $copado('[id$=auxFunctionId_lkid]').val(recordId);
+                    if (data && data.functionParameters) {
+                        copadoFunctionStep.addParametersToLayout(data.functionParameters);
+                    } else {
+                        var functionParameters = functionRecord[copadoApp.ns + 'Parameters__c'];
+                        var parsedParameters = JSON.parse(functionParameters);
+                        copadoFunctionStep.addParametersToLayout(parsedParameters);
+                    }
+                    $copado('[id$=openfunction]').show();
+                    $copado('[id$=functionParamWrapperLabel]').show();
+                }
+            },
+            onFailure: function(error) {
+                console.error('An error has occurred ' + error);
+            }
+        });
+    },
+    getObjToSave: function() {
+        return JSON.stringify({
+            functionAPIName: functionRecord ? functionRecord[copadoApp.ns + 'API_Name__c'] : '',
+            functionParameters: copadoFunctionStep.prepareParameterJSON()
+        });
+    },
+    reset: function() {
+        copadoFunctionStep.data.functionId = '';
+        $copado('[id$=auxFunctionId_lkid]').val('000000000000000');
+        $copado('[id$=auxFunctionId_lkold]').val('');
+        $copado('[id$=auxFunctionId]').val('');
+        $copado('[id$=headerFunction]').text('');
+        $copado('#functionParameters').html('');
+        $copado('[id$=openfunction]').hide();
+        $copado('[id$=functionParamWrapperLabel]').hide();
+    },
+    isValid: function() {
+        return $copado('[id$=auxFunctionId]').val() == '' ? false : true;
+    },
+    addParametersToLayout: function(functionParameters) {
+        $copado('#functionParameters').html('');
+        functionParameters.forEach(parameter => {
+            var nameField =
+                '<input type="text" style="margin: 0.5rem 0.5rem 0.5rem 0rem" placeholder="' +
+                copadoLabels.PARAMETER_NAME +
+                '" class="js-param" value="' +
+                parameter.name +
+                '" />';
+            var parameterValue = parameter.defaultValue || parameter.value;
+            var valueField =
+                '<input type="text" style="margin: 0.5rem" placeholder="' +
+                copadoLabels.PARAMETER_VALUE +
+                '"  class="js-param" value="' +
+                parameterValue +
+                '" />';
+            var wrapper = '<div class="js-param-container" style="clear:both;">' + nameField + valueField + '</div>';
+            $copado(wrapper).appendTo('#functionParameters');
+        });
+    },
+    prepareParameterJSON: function() {
+        var parameterArray = [];
+
+        for (let i = 0; i < document.querySelectorAll('.js-param-container').length; i++) {
+            var currentContainer = document.querySelectorAll('.js-param-container')[i];
+            var objects = currentContainer.querySelectorAll('.js-param');
+            parameterArray.push({ name: objects[0].value, value: objects[1].value });
+        }
+
+        return parameterArray;
+    },
+    openFunction: function() {
+        let functionId = $copado('[id$=auxFunctionId_lkid]').val();
+        if (typeof sforce != 'undefined' && sforce && !!sforce.one) {
+            return window.open('/lightning/r/' + functionId + '/view', '_blank');
+        } else {
+            return window.open('/' + functionId, '_blank');
+        }
     }
 };
 
