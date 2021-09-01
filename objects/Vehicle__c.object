@@ -190,6 +190,11 @@
                     <default>false</default>
                     <label>Truck</label>
                 </value>
+                <value>
+                    <fullName>Recreation</fullName>
+                    <default>false</default>
+                    <label>Recreation</label>
+                </value>
             </valueSetDefinition>
         </valueSet>
     </fields>
