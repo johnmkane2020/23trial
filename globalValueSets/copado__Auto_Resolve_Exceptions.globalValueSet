@@ -30,6 +30,36 @@
         <default>false</default>
         <label>Layout</label>
     </customValue>
+    <customValue>
+        <fullName>CustomField</fullName>
+        <default>false</default>
+        <label>CustomField</label>
+    </customValue>
+    <customValue>
+        <fullName>Profile</fullName>
+        <default>false</default>
+        <label>Profile</label>
+    </customValue>
+    <customValue>
+        <fullName>FlexiPage</fullName>
+        <default>false</default>
+        <label>FlexiPage</label>
+    </customValue>
+    <customValue>
+        <fullName>GlobalValueSet</fullName>
+        <default>false</default>
+        <label>GlobalValueSet</label>
+    </customValue>
+    <customValue>
+        <fullName>CustomObject</fullName>
+        <default>false</default>
+        <label>CustomObject</label>
+    </customValue>
+    <customValue>
+        <fullName>Flow</fullName>
+        <default>false</default>
+        <label>Flow</label>
+    </customValue>
     <description>Metadata types to be excluded from the auto-resolve feature of Copado.</description>
     <masterLabel>Auto Resolve Exceptions</masterLabel>
     <sorted>false</sorted>
