@@ -5251,11 +5251,6 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>false</editable>
-        <field>Contact.Nickname__c</field>
-        <readable>false</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>false</editable>
         <field>Contact.OtherAddress</field>
         <readable>false</readable>
     </fieldPermissions>
