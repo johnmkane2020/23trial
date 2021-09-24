@@ -385,6 +385,15 @@
         <searchResultsAdditionalFields>CORE.USERS.ALIAS</searchResultsAdditionalFields>
     </searchLayouts>
     <sharingModel>ReadWrite</sharingModel>
+    <validationRules>
+        <fullName>Test_Rule</fullName>
+        <active>true</active>
+        <errorConditionFormula>AND(
+   ISBLANK(AccountNumber),
+   NOT(ISNUMBER(AccountNumber))
+)</errorConditionFormula>
+        <errorMessage>Test Error Message</errorMessage>
+    </validationRules>
     <webLinks>
         <fullName>AltavistaNews</fullName>
         <availability>online</availability>
