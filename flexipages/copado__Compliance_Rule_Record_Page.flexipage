@@ -44,6 +44,12 @@
                 <identifier>force_detailPanel</identifier>
             </componentInstance>
         </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>copado:complianceCriteriaManager</componentName>
+                <identifier>complianceCriteriaManager</identifier>
+            </componentInstance>
+        </itemInstances>
         <mode>Replace</mode>
         <name>detailTabContent</name>
         <type>Facet</type>
